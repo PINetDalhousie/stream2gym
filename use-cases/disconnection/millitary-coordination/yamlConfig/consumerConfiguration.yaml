@@ -2,4 +2,5 @@
 ---
   consumerPath : use-cases/disconnection/millitary-coordination/military-consumerSingle.py
   consumerInstances : 1
+  brokerNode: h2
 ...

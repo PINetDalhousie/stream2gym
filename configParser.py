@@ -3,6 +3,7 @@ import yaml
 from yaml.loader import SafeLoader
 
 import sys
+import numpy as np
 import networkx as nx
 
 GROUP_MIN_SESSION_TIMEOUT_MS = 6000
@@ -50,18 +51,19 @@ def readBrokerConfig(brokerConfigPath, nodeID):
 # reading from producer YAML specification
 def readProdConfig(prodConfigPath, producerType, nodeID):
 	prodConfig = readYAMLConfig(prodConfigPath)
-
+	print(prodConfig)
 	prodFile = "None" if prodConfig[0].get("filePath", "None") is None else prodConfig[0].get("filePath", "None")
 	prodTopic = "None" if prodConfig[0].get("topicName", "None") is None else prodConfig[0].get("topicName", "None")
 	prodNumberOfFiles = "0" if str(prodConfig[0].get("totalMessages", "0")) is None else str(prodConfig[0].get("totalMessages", "0"))
 	nProducerInstances = "1" if str(prodConfig[0].get("producerInstances", "1")) is None else str(prodConfig[0].get("producerInstances", "1"))
 	producerPath = "producer.py" if prodConfig[0].get("producerPath", "producer.py") is None else prodConfig[0].get("producerPath", "producer.py")
+	producerBrokerId = prodConfig[0].get('brokerNode')
 
 	# Apache Kafka parameters
-	acks = 1 if prodConfig[0].get("acks", 1) is None else prodConfig[0].get("acks", 1)
-	compression = "None" if str(prodConfig[0].get("compression", "None")) is None else str(prodConfig[0].get("compression", "None"))
-	batchSize = 16384 if prodConfig[0].get("batchSize", 16384) is None else prodConfig[0].get("batchSize", 16384)
-	linger = 0 if prodConfig[0].get("linger", 0) is None else prodConfig[0].get("linger", 0)
+	acks = np.random.randint(0,2)
+	compression = np.random.choice(['None','gzip','snappy'],replace=False)
+	batchSize = np.random.randint(4096,262145)
+	linger = np.random.randint(0,101)
 	requestTimeout = 30000 if prodConfig[0].get("requestTimeout", 30000) is None else prodConfig[0].get("requestTimeout", 30000)
 	bufferMemory = 33554432 if prodConfig[0].get("bufferMemory", 33554432) is None else prodConfig[0].get("bufferMemory", 33554432)
 
@@ -74,6 +76,7 @@ def readProdConfig(prodConfigPath, producerType, nodeID):
 					"produceFromFile":prodFile, "produceInTopic": prodTopic,\
 					"prodNumberOfFiles": prodNumberOfFiles, "nProducerInstances": nProducerInstances, \
 					"producerPath": producerPath,\
+					"brokerId":producerBrokerId[1:],\
 					"acks":acks, "compression":compression, "batchSize": batchSize, \
 					"linger": linger, "requestTimeout": requestTimeout, "bufferMemory": bufferMemory, \
 					"mRate": mRate}
@@ -86,12 +89,15 @@ def readProdConfig(prodConfigPath, producerType, nodeID):
 # reading from consumer YAML specification
 def readConsConfig(consConfigPath, consumerType, nodeID):
 	consConfig = readYAMLConfig(consConfigPath)
+	print(consConfig)
 	consTopic = "" if consConfig[0].get("topicName", "") is None else consConfig[0].get("topicName", "")
 	nConsumerInstances = "1" if str(consConfig[0].get("consumerInstances", "1")) is None else str(consConfig[0].get("consumerInstances", "1"))
 	consumerPath = "consumer.py" if consConfig[0].get("consumerPath", "consumer.py") is None else consConfig[0].get("consumerPath", "consumer.py")
 	fetchMinBytes = 1 if int(consConfig[0].get("fetchMinBytes", 1)) is None else int(consConfig[0].get("fetchMinBytes", 1))
 	fetchMaxWait = 500 if int(consConfig[0].get("fetchMaxWait", 500)) is None else int(consConfig[0].get("fetchMaxWait", 500))
 	sessionTimeout = 10000 if int(consConfig[0].get("sessionTimeout", 10000)) is None else int(consConfig[0].get("sessionTimeout", 10000))
+	consumerBroker = consConfig[0].get('brokerNode')
+ 
 
 	# Note that the value must be in the allowable range as configured in the broker configuration by group.min.session.timeout.ms and group.max.session.timeout.ms
 	if sessionTimeout < GROUP_MIN_SESSION_TIMEOUT_MS or sessionTimeout > GROUP_MAX_SESSION_TIMEOUT_MS:
@@ -108,6 +114,7 @@ def readConsConfig(consConfigPath, consumerType, nodeID):
 	consDetails = {"nodeId": nodeID, "consumerType": consumerType,\
 					"consumeFromTopic": consTopic, "nConsumerInstances": nConsumerInstances, \
 					"consumerPath": consumerPath, "fetchMinBytes": fetchMinBytes, \
+					"brokerId": consumerBroker[1:],\
 					"fetchMaxWait": fetchMaxWait, "sessionTimeout": sessionTimeout}
 
 	return consDetails 
@@ -126,7 +133,7 @@ def readFaultConfig(faultConfigPath):
 
 
 def validateProducerParameters(prodConfig, nodeID, producerType, acks, compression, mRate):
-	if producerType == 'CUSTOM' and len(prodConfig[0]) != 2:
+	if producerType == 'CUSTOM' and len(prodConfig[0]) != 3:
 		print("ERROR: required parameters for CUSTOM producer at producer on node "+str(nodeID)+": producer file path and number of producer instance")
 		sys.exit(1)
 	if producerType == 'STANDARD' and len(prodConfig[0]) < 2:
@@ -185,6 +192,7 @@ def readConfigParams(net, args):
 		topicConfigPath = inputTopo.graph["topicConfig"]
 		print("topic config directory: " + topicConfigPath)
 		topicPlace = readYAMLConfig(topicConfigPath)
+		print(topicPlace)
 
 	# reading fault config
 	try:

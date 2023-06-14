@@ -2,4 +2,5 @@
 ---
   producerPath: use-cases/disconnection/millitary-coordination/military-data-producer.py
   producerInstances: 1
+  brokerNode: h2
 ...

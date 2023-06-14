@@ -66,11 +66,13 @@ def runKafka(net, brokerPlace, brokerWaitTime=200):
 	netNodes = {}
 
 	for node in net.hosts:
+		print(node)
 		netNodes[node.name] = node
 		
 	startTime = time.time()
 	popens = {}
 	for bk in brokerPlace:
+		print(bk)
 		bNode = bk["nodeId"]
 		bID = "h"+str(bNode)
 

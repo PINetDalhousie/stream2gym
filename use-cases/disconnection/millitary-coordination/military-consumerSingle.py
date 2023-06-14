@@ -13,9 +13,11 @@ try:
 	seed(2)
 	nodeName = sys.argv[1]
 	consInstance = sys.argv[2]
+	brokerId = sys.argv[3]
 	nodeID = nodeName[1:]
+	
 
-	nTopics = 2      
+	nTopics = 1      
 	cRate = 0.5
 	fetchMinBytes = 1
 	fetchMaxWait = 500
@@ -32,10 +34,10 @@ try:
 
 	consumers = []
 	timeout = int((1.0/cRate) * 1000)
-	bootstrapServers="10.0.0."+str(nodeID)+":9092"  
+	bootstrapServers="10.0.0."+str(brokerId)+":9092"  
 
 	# One consumer for all topics
-	topicName = 'topic-*'
+	topicName = 'topic-0'
 	logging.info("topicName "+topicName)
 	consumptionLag = random() < 0.95				
 	logging.info("**Configuring KafkaConsumer** topicName=" + topicName + " bootstrap_servers=" + str(bootstrapServers) +
@@ -50,7 +52,7 @@ try:
 		fetch_min_bytes=fetchMinBytes,
 		fetch_max_wait_ms=fetchMaxWait,
 		session_timeout_ms=sessionTimeout,
-		group_id="group-"+str(nodeID)+"-instance"+str(consInstance)                                     
+		# group_id="group-"+str(nodeID)+"-instance"+str(consInstance)                                     
 	)	
 	consumer.subscribe(pattern=topicName)
 
@@ -59,7 +61,9 @@ try:
 	messages = {}
 	while True:
 		startTime = time.time()		
+		logging.info(consumer)
 		for msg in consumer:
+			logging.info(msg)
 			try:
 				msgContent = str(msg.value, 'utf-8')
 				prodID = msgContent[:2]

@@ -39,8 +39,11 @@ def logTopicLeaders(net, logDir, topicPlace):
 	for topic in topicPlace:
 		topicName = topic["topicName"]
 		issuingID = int(topic["topicBroker"])
-		issuingNode = net.hosts[issuingID-1]
-		out = issuingNode.cmd("kafka/bin/kafka-topics.sh --bootstrap-server 10.0.0."+str(issuingID)+":9092 --describe --topic "+str(topicName), shell=True)
+		brokerId = int(topic["brokerId"][1:])
+		# issuingNode = net.hosts[issuingID-1]
+		# out = issuingNode.cmd("kafka/bin/kafka-topics.sh --bootstrap-server 10.0.0."+str(issuingID)+":9092 --describe --topic "+str(topicName), shell=True)
+		issuingNode = net.hosts[issuingID]
+		out = issuingNode.cmd("kafka/bin/kafka-topics.sh --bootstrap-server 10.0.0."+str(brokerId)+":9092 --describe --topic "+str(topicName), shell=True)
 		split1 = out.split('Leader: ')
 		print(split1)
 		split2 = split1[1].split('\t')
@@ -78,6 +81,8 @@ def spawnProducers(net, nTopics, args, prodDetailsList, topicPlace):
 		prodTopic = prod['produceInTopic']
 		prodNumberOfFiles = prod['prodNumberOfFiles']
 		nProducerInstances = prod['nProducerInstances']
+  
+		brokerId = int(prod['brokerId'])
 		
 		# Apache Kafka producer parameters
 		acks = prod['acks']
@@ -91,6 +96,7 @@ def spawnProducers(net, nTopics, args, prodDetailsList, topicPlace):
 		mRate = prod['mRate']
 
 		node = netNodes[nodeID]
+  
 
 		try:
 			if producerType != 'CUSTOM':
@@ -102,7 +108,10 @@ def spawnProducers(net, nTopics, args, prodDetailsList, topicPlace):
 
 			while prodInstance <= int(nProducerInstances):
 				if producerType == 'CUSTOM':
-					node.popen("python3 "+ producerPath +" " +nodeID+" "+str(prodInstance)+" &", shell=True)
+					# node.popen("python3 "+ producerPath +" " +nodeID+" "+str(prodInstance)+" "+str(brokerId)+" &", shell=True)
+					node.popen("python3 "+producerPath+" "+nodeID+" "+str(prodInstance)+" "+str(brokerId)+" "+str(mRate)\
+						+" "+str(nTopics)+" "+str(compression)+" "+str(batchSize)+" "+str(linger)\
+						+" "+str(bufferMemory)+" &", shell=True)
 					
 				else:		
 					try:
@@ -141,6 +150,7 @@ def spawnConsumers(net, consDetailsList, topicPlace):
 
 		consID = "h"+consNode      
 		node = netNodes[consID]
+		brokerId = int(cons['brokerId'])
 
 		# print("consumer node: "+consNode)
 		# print("topic: "+topicName)
@@ -155,7 +165,7 @@ def spawnConsumers(net, consDetailsList, topicPlace):
 
 			while consInstance <= int(nConsumerInstances):
 				if consumerType == 'CUSTOM':
-					node.popen("python3 "+consumerPath+" "+str(node.name)+" "+str(consInstance)+" &", shell=True)
+					node.popen("python3 "+consumerPath+" "+str(node.name)+" "+str(consInstance)+" "+str(brokerId)+" &", shell=True)
 				else:
 					topicName = [x for x in topicPlace if x['topicName'] == topicName][0]["topicName"]
 					brokerId = [x for x in topicPlace if x['topicName'] == topicName][0]["topicBroker"] 
@@ -235,20 +245,29 @@ def runLoad(net, args, topicPlace, prodDetailsList, consDetailsList, streamProcD
 	for topic in topicPlace:
 		topicName = topic["topicName"]
 		issuingID = int(topic["topicBroker"])
+		print(topic)
 		topicPartition = topic["topicPartition"]
 		topicReplica = topic["topicReplica"]
-		issuingNode = net.hosts[issuingID-1]
+		# issuingNode = net.hosts[issuingID-1]
+		issuingNode = net.hosts[issuingID]
+		brokerId = topic["brokerId"][1:]
+		print(issuingNode)
+		print(net.hosts)
 
 		print("Creating topic "+topicName+" at broker "+str(issuingID)+" partition "+str(topicPartition))
 
-		out = issuingNode.cmd("kafka/bin/kafka-topics.sh --create --bootstrap-server 10.0.0."+str(issuingID)+
+		# out = issuingNode.cmd("kafka/bin/kafka-topics.sh --create --bootstrap-server 10.0.0."+str(issuingID)+
+		# 	":9092 --replication-factor "+str(topicReplica)+" --partitions " + str(topicPartition) +
+		# 	" --topic "+topicName, shell=True)
+		out = issuingNode.cmd("kafka/bin/kafka-topics.sh --create --bootstrap-server 10.0.0."+brokerId+
 			":9092 --replication-factor "+str(topicReplica)+" --partitions " + str(topicPartition) +
 			" --topic "+topicName, shell=True)
 		
 		print(out)
 		topicNodes.append(issuingNode)
 
-		topicDetails = issuingNode.cmd("kafka/bin/kafka-topics.sh --describe --bootstrap-server 10.0.0."+str(issuingID)+":9092", shell=True)
+		# topicDetails = issuingNode.cmd("kafka/bin/kafka-topics.sh --describe --bootstrap-server 10.0.0."+str(issuingID)+":9092", shell=True)
+		topicDetails = issuingNode.cmd("kafka/bin/kafka-topics.sh --describe --bootstrap-server 10.0.0."+brokerId+":9092", shell=True)
 		print("Topic description at the beginning of the simulation:")
 		print(topicDetails)
 

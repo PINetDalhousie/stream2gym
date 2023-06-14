@@ -80,21 +80,28 @@ def generateMessage(mSizeParams):
 try:
 	node = sys.argv[1]
 	prodInstanceID = sys.argv[2]
+	brokerId = sys.argv[3]
 	nodeID = node[1:]
 	
 	tClass = 1.0
 	mSizeString = 'fixed,10'
 	mRate = 30   #1.0
-	nTopics = 2
+	nTopics = int(sys.argv[5])
 
 	acks = 1
-	compression = 'gzip'   #'None'
-	batchSize = 16384
-	linger = 5000    #0
+	compression = sys.argv[6]
+	batchSize = int(sys.argv[7])
+	linger = int(sys.argv[8])
+	bufferMemory = int(sys.argv[9])
+	brokers = 1
+	nSwitches = 1
+	# compression = 'gzip'   #'None'
+	# batchSize = 16384
+	# linger = 5000    #0
 	requestTimeout = 100000  #30000
-	brokers = 10
+	# brokers = 10
 	messageFilePath = 'use-cases/disconnection/millitary-coordination/Cars103.xml'
-	nSwitches = 10
+	# nSwitches = 10
 
 	logDir = "logs/output"
 
@@ -103,7 +110,7 @@ try:
 								format='%(asctime)s %(levelname)s:%(message)s',
 								level=logging.INFO) 
  
-	
+	logging.info(sys.argv)
 
 	seed(1)
 
@@ -112,7 +119,7 @@ try:
          
 	logging.info("node: "+nodeID)
     
-	bootstrapServers="10.0.0."+nodeID+":9092"
+	bootstrapServers="10.0.0."+brokerId+":9092"
 
 	# Convert acks=2 to 'all'
 	if(acks == 2):
@@ -128,14 +135,16 @@ try:
 			acks=acks,
 			batch_size=batchSize,
 			linger_ms=linger,
-			request_timeout_ms=requestTimeout)
+			request_timeout_ms=requestTimeout,
+   			buffer_memory=bufferMemory)
 	else:
 		producer = KafkaProducer(bootstrap_servers=bootstrapServers,
 			acks=acks,
 			compression_type=compression,
 			batch_size=batchSize,
 			linger_ms=linger,
-			request_timeout_ms=requestTimeout)
+			request_timeout_ms=requestTimeout,
+   			buffer_memory=bufferMemory)
 
 	# Read the message once and save in cache
 	if(messageFilePath != 'None'):
