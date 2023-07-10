@@ -35,6 +35,7 @@ popens = {}
 consLogs = []
 
 prodCount = 0
+interval = 5
 consCount = 0
 extraLatencyMessage = 0
 
@@ -50,7 +51,7 @@ def plotLatencyScatter():
                 firstSplit = line.split("Latency of this message: 0:")
                 print(firstSplit)
                 if len(firstSplit) == 2:
-                 latencyYAxis.append(float(firstSplit[1][0:2])*60.0 + float(firstSplit[1][3:5]))
+                 latencyYAxis.append(float(firstSplit[1][0:2])*60.0 + float(firstSplit[1][3:12]))
     return latencyYAxis
                 
 
@@ -145,6 +146,53 @@ def readConsumerData(prodDetails, consDetails, nProducer, nConsumer, logDir):
 
         f.close()
         consId += 1
+        
+        
+def overheadCheckPlot(portFlag, msgSize):
+    
+    allBandwidth = []
+    countX = 0
+    
+    portParams = [(1,1),(2,1),(3,1),(4,1),(5,1),(6,1),(7,1),(8,1),(9,1),(10,1),
+                  (1,2),(2,2),(1,3),(3,3),(1,4),(4,4),(1,5),(5,5),(1,6),(6,6),
+                  (1,7),(7,7),(1,8),(8,8),(1,9),(9,9),(1,10),(10,10)]
+    for ports in portParams:
+        portId, switchId = ports
+    
+        bandwidth, occurrence, maxBandwidth = readThroughput(switchId,portId, portFlag)
+        
+        if countX == 0:
+            countX = occurrence
+        
+        if len(bandwidth)<countX:
+            for k in range(countX-len(bandwidth)):
+                bandwidth.append(0)                    #filling with 0's to match up the length
+            
+        allBandwidth.append(bandwidth)
+
+    bandwidthSum = []
+    bandwidthSumLeaderLess = []
+    for i in range(countX):
+        valWithLeader = 0
+#         valWithoutLeader = 0
+        for j in range(10):
+            valWithLeader = valWithLeader+allBandwidth[j][i]
+#             if (j+1) not in leaderReplicaList:         #to skip the leader replica curves
+#                 valWithoutLeader = valWithoutLeader+allBandwidth[j][i]
+        
+        bandwidthSum.append(valWithLeader)
+#         bandwidthSumLeaderLess.append(valWithoutLeader)
+        
+    timeList = list(range(0,countX*interval,interval))
+
+
+    newBandwidthSum = [x / 1000000 for x in bandwidthSum]
+    
+    return newBandwidthSum
+        
+def plotAggregatedBandwidth():   
+    msgSize = 10
+    return overheadCheckPlot("bytes", msgSize)
 
 def readThroughput(switch,portNumber, portFlag):
     count=0
@@ -186,36 +234,36 @@ def readThroughput(switch,portNumber, portFlag):
     return bandwidth,count, maxBandwidth
     
     
-def getAllThroughput():
-    portParams = [(1,1)]
+# def getAllThroughput():
+#     portParams = [(2,1)]
     
-    allBandwidth = []
-    countX = 0
-    for ports in portParams:
-        portId, switchId = ports
-        bandwidth, occurrence, maxBandwidth = readThroughput(switchId,portId, 'rx pkts') 
+#     allBandwidth = []
+#     countX = 0
+#     for ports in portParams:
+#         portId, switchId = ports
+#         bandwidth, occurrence, maxBandwidth = readThroughput(switchId,portId, 'rx pkts') 
         
-        if countX == 0:
-            countX = occurrence
+#         if countX == 0:
+#             countX = occurrence
         
-        if len(bandwidth)<countX:
-            for k in range(countX-len(bandwidth)):
-                bandwidth.append(0)                    #filling with 0's to match up the length
+#         if len(bandwidth)<countX:
+#             for k in range(countX-len(bandwidth)):
+#                 bandwidth.append(0)                    #filling with 0's to match up the length
             
-        allBandwidth.append(bandwidth)
+#         allBandwidth.append(bandwidth)
 
-    bandwidthSum = []
-    for i in range(countX):
-        valWithLeader = 0
-#         valWithoutLeader = 0
-        for j in range(1):
-            valWithLeader = valWithLeader+allBandwidth[j][i]
-#             if (j+1) not in leaderReplicaList:         #to skip the leader replica curves
-#                 valWithoutLeader = valWithoutLeader+allBandwidth[j][i]
+#     bandwidthSum = []
+#     for i in range(countX):
+#         valWithLeader = 0
+# #         valWithoutLeader = 0
+#         for j in range(1):
+#             valWithLeader = valWithLeader+allBandwidth[j][i]
+# #             if (j+1) not in leaderReplicaList:         #to skip the leader replica curves
+# #                 valWithoutLeader = valWithoutLeader+allBandwidth[j][i]
         
-        bandwidthSum.append(valWithLeader)
-    return bandwidthSum
-#         bandwidthSumLeaderLess.append(valWithoutLeader)
+#         bandwidthSum.append(valWithLeader)
+#     return bandwidthSum
+# #         bandwidthSumLeaderLess.append(valWithoutLeader)
 
 # Kill all subprocesses
 def killSubprocs(brokerPlace, zkPlace, prodDetailsList, streamProcDetailsList, consDetailsList):	
@@ -256,7 +304,7 @@ if __name__ == '__main__':
 	  
 	args = parser.parse_args()
 	# print(args)
-	field_names = ['acks', 'compression', 'batchSize', 'linger', 'requestTimeout', 'bufferMemory','Throughput', 'Latency']
+	field_names = ['compression', 'batchSize', 'linger','n_topics','fetch_time','Throughput', 'Latency']
 	filename = 'data.csv'
 	with open(filename, 'a', newline='') as file:
 		writer = csv.DictWriter(file, fieldnames=field_names)
@@ -267,7 +315,7 @@ if __name__ == '__main__':
  
 
 		#Clean up mininet state
-		for i in range(100):
+		for i in range(10000):
 			cleanProcess = subprocess.Popen("sudo mn -c", shell=True)
 			time.sleep(2)
 
@@ -292,12 +340,11 @@ if __name__ == '__main__':
 			data = {}
 			for j in prodDetailsList:
 				if j['nodeId'] == '1':
-					data['acks'] = j['acks']
 					data['compression'] = j['compression']
 					data['batchSize'] = j['batchSize']
 					data['linger'] = j['linger']
-					data['requestTimeout'] = j['requestTimeout']
-					data['bufferMemory'] = j['bufferMemory']
+					data['n_topics'] = len(topicPlace)
+					data['fetch_time'] = brokerPlace[0]['replicaMaxWait']
 					break
 
 			nTopics = len(topicPlace)
@@ -379,16 +426,22 @@ if __name__ == '__main__':
 
 			#Need to clean spark dependency before a new simulation
 			emuStreamProc.cleanStreamProcDependency()
-			Thr = getAllThroughput()
+			Thr = plotAggregatedBandwidth()
 			Thr_avg = sum(Thr) / len(Thr)
-			prodDetails = [{'prodNodeID':1, 'prodInstID':1}]
-			consDetails = [{'consNodeID':3, 'consInstID':1}]
+			print(Thr)
+		
+			prodDetails = [{'prodNodeID':1, 'prodInstID':1},{'prodNodeID':2, 'prodInstID':1},{'prodNodeID':2, 'prodInstID':1},{'prodNodeID':2, 'prodInstID':1},
+                  {'prodNodeID':3, 'prodInstID':1},{'prodNodeID':4, 'prodInstID':1},{'prodNodeID':5, 'prodInstID':1},{'prodNodeID':6, 'prodInstID':1},
+                  {'prodNodeID':7, 'prodInstID':1},{'prodNodeID':8, 'prodInstID':1},{'prodNodeID':9, 'prodInstID':1},{'prodNodeID':10, 'prodInstID':1}]
+			consDetails = [{'consNodeID':1, 'consInstID':1}, {'consNodeID':2, 'consInstID':1},{'consNodeID':3, 'consInstID':1},{'consNodeID':4, 'consInstID':1},
+                  {'consNodeID':5, 'consInstID':1},{'consNodeID':6, 'consInstID':1},{'consNodeID':7, 'consInstID':1},{'consNodeID':8, 'consInstID':1}
+                  ,{'consNodeID':9, 'consInstID':1},{'consNodeID':10, 'consInstID':1}]
 			nProducer = len(prodDetails)
 			nConsumer = len(consDetails)
 			logDir = 'logs/output/'
 			nTopic = 1
 			print(nProducer)
-			switches = 1 #args.switches
+			switches = 10 #args.switches
 			# logDir = args.logDir
 
 			os.system("sudo rm "+logDir+"latency-log.txt"+"; sudo touch "+logDir+"latency-log.txt")  
@@ -413,7 +466,7 @@ if __name__ == '__main__':
 			data['Latency'] = late_avg
 			writer.writerow(data)
 			print(i,'-------------------------------------------------------------------------------------------')
-			break
+			
  
      
 

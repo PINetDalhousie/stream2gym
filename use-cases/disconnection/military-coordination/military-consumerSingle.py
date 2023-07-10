@@ -8,18 +8,22 @@ import sys
 import time
 
 import logging
+logDir = "logs/output"
+logging.basicConfig(filename=logDir+"/cons/"+"cons-node"+".log",level=logging.INFO)
 
 try:
 	seed(2)
 	nodeName = sys.argv[1]
 	consInstance = sys.argv[2]
-	brokerId = sys.argv[3]
+ 
+	brokerId = sys.argv[4]
 	nodeID = nodeName[1:]
 	
 
 	nTopics = 1      
 	cRate = 0.5
 	fetchMinBytes = 1
+	
 	fetchMaxWait = 500
 	sessionTimeout = 10000 
 	topicCheckInterval = 0.1
@@ -34,10 +38,10 @@ try:
 
 	consumers = []
 	timeout = int((1.0/cRate) * 1000)
-	bootstrapServers="10.0.0."+str(brokerId)+":9092"  
+	bootstrapServers="10.0.0."+str(nodeID)+":9092"  
 
 	# One consumer for all topics
-	topicName = 'topic-0'
+	topicName = 'topic-*'
 	logging.info("topicName "+topicName)
 	consumptionLag = random() < 0.95				
 	logging.info("**Configuring KafkaConsumer** topicName=" + topicName + " bootstrap_servers=" + str(bootstrapServers) +

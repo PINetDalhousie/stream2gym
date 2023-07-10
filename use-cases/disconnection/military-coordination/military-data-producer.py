@@ -13,6 +13,15 @@ import re
 import random
 import os
 
+logDir = "logs/output"
+
+
+logging.basicConfig(filename=logDir+"/prod/"+"prod-node"+"1"+\
+								"-instance"+str(2)+".log",
+								format='%(asctime)s %(levelname)s:%(message)s',
+								level=logging.INFO) 
+ 
+
 def processProdMsg(q):
 	while True:
 		msgStatus = q.get()
@@ -88,13 +97,13 @@ try:
 	mRate = 30   #1.0
 	nTopics = int(sys.argv[5])
 
-	acks = 1
+	acks = -1
 	compression = sys.argv[6]
 	batchSize = int(sys.argv[7])
 	linger = int(sys.argv[8])
 	bufferMemory = int(sys.argv[9])
-	brokers = 1
-	nSwitches = 1
+	brokers = 10
+	nSwitches = 10
 	# compression = 'gzip'   #'None'
 	# batchSize = 16384
 	# linger = 5000    #0
@@ -104,6 +113,7 @@ try:
 	# nSwitches = 10
 
 	logDir = "logs/output"
+
 
 	logging.basicConfig(filename=logDir+"/prod/"+"prod-node"+nodeID+\
 								"-instance"+str(prodInstanceID)+".log",
@@ -119,7 +129,7 @@ try:
          
 	logging.info("node: "+nodeID)
     
-	bootstrapServers="10.0.0."+brokerId+":9092"
+	bootstrapServers="10.0.0."+nodeID+":9092"
 
 	# Convert acks=2 to 'all'
 	if(acks == 2):
@@ -184,5 +194,6 @@ try:
 		time.sleep(1.0/(mRate*tClass))
 
 except Exception as e:
+
 	logging.error(e)
 	sys.exit(1)

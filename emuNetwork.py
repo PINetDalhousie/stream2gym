@@ -39,9 +39,9 @@ class CustomTopo(Topo):
 			if 'bandwidth' in data:
 				linkBandwidth = int(data['bandwidth'])
 
-			linkDelay = '1ms'
-			if 'latency' in data:
-				linkDelay = str(data['latency'])+'ms'
+			linkDelay = '10ms'
+			# if 'latency' in data:
+			# 	linkDelay = str(data['latency'])+'ms'
 
 			self.addLink(source, target, data['sport'], data['dport'], bw=linkBandwidth, delay=linkDelay)
 

@@ -37,7 +37,9 @@ def readBrokerConfig(brokerConfigPath, nodeID):
 		replicaMaxWait = 500
 		replicaMinBytes = 1
 	else:
-		replicaMaxWait = 500 if brokerConfig[0].get("replicaMaxWait", 500) is None else brokerConfig[0].get("replicaMaxWait", 500)
+     
+		replicaMaxWait = np.random.randint(1,30001)
+		# replicaMaxWait = 500 if brokerConfig[0].get("replicaMaxWait", 500) is None else brokerConfig[0].get("replicaMaxWait", 500)
 		replicaMinBytes = 1 if brokerConfig[0].get("replicaMinBytes", 1) is None else brokerConfig[0].get("replicaMinBytes", 1)
 
 	validateBrokerParameters(brokerConfig, nodeID, replicaMaxWait, replicaMinBytes)
@@ -65,6 +67,7 @@ def readProdConfig(prodConfigPath, producerType, nodeID):
 	batchSize = np.random.randint(4096,262145)
 	linger = np.random.randint(0,101)
 	requestTimeout = 30000 if prodConfig[0].get("requestTimeout", 30000) is None else prodConfig[0].get("requestTimeout", 30000)
+	# bufferMemory = np.random.randint(2097152,100663297)
 	bufferMemory = 33554432 if prodConfig[0].get("bufferMemory", 33554432) is None else prodConfig[0].get("bufferMemory", 33554432)
 
 	# S2G producer parameters
@@ -94,9 +97,11 @@ def readConsConfig(consConfigPath, consumerType, nodeID):
 	nConsumerInstances = "1" if str(consConfig[0].get("consumerInstances", "1")) is None else str(consConfig[0].get("consumerInstances", "1"))
 	consumerPath = "consumer.py" if consConfig[0].get("consumerPath", "consumer.py") is None else consConfig[0].get("consumerPath", "consumer.py")
 	fetchMinBytes = 1 if int(consConfig[0].get("fetchMinBytes", 1)) is None else int(consConfig[0].get("fetchMinBytes", 1))
+	
 	fetchMaxWait = 500 if int(consConfig[0].get("fetchMaxWait", 500)) is None else int(consConfig[0].get("fetchMaxWait", 500))
 	sessionTimeout = 10000 if int(consConfig[0].get("sessionTimeout", 10000)) is None else int(consConfig[0].get("sessionTimeout", 10000))
 	consumerBroker = consConfig[0].get('brokerNode')
+
  
 
 	# Note that the value must be in the allowable range as configured in the broker configuration by group.min.session.timeout.ms and group.max.session.timeout.ms
@@ -192,6 +197,10 @@ def readConfigParams(net, args):
 		topicConfigPath = inputTopo.graph["topicConfig"]
 		print("topic config directory: " + topicConfigPath)
 		topicPlace = readYAMLConfig(topicConfigPath)
+		n_copy = np.random.randint(1,3)
+		topicPlace = [topicPlace[0].copy() for _ in range(n_copy)]
+		for i in range(len(topicPlace)):
+			topicPlace[i]['topicName'] = 'topic-'+str(i)
 		print(topicPlace)
 
 	# reading fault config
