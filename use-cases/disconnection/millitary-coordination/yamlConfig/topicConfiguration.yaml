@@ -3,11 +3,11 @@
   topicName: topic-0
   topicBroker: 1
   topicPartition: 1
-  topicReplica: 10
+  topicReplica: 1
 ...
----
-  topicName: topic-1
-  topicBroker: 1
-  topicPartition: 1
-  topicReplica: 10
-...
+# ---
+#   topicName: topic-1
+#   topicBroker: 1
+#   topicPartition: 1
+#   topicReplica: 10
+# ...

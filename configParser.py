@@ -4,6 +4,7 @@ from yaml.loader import SafeLoader
 
 import sys
 import networkx as nx
+import numpy as np
 
 GROUP_MIN_SESSION_TIMEOUT_MS = 6000
 GROUP_MAX_SESSION_TIMEOUT_MS = 1800000
@@ -28,7 +29,7 @@ def validateBrokerParameters(brokerConfig, nodeID, replicaMaxWait, replicaMinByt
 		print("ERROR in producer at node "+str(nodeID)+": replica.fetch.wait.max.ms must be less than the replica.lag.time.max.ms value of " +  str(REPLICA_LAG_TIME_MAX_MS) + " at all times.")
 		sys.exit(1)
 	
-def readBrokerConfig(brokerConfigPath, nodeID):
+def readBrokerConfig(brokerConfigPath, nodeID, replicaMaxWait):
 	brokerConfig = readYAMLConfig(brokerConfigPath)
 
 	# Apache Kafka broker parameters
@@ -36,7 +37,8 @@ def readBrokerConfig(brokerConfigPath, nodeID):
 		replicaMaxWait = 500
 		replicaMinBytes = 1
 	else:
-		replicaMaxWait = 500 if brokerConfig[0].get("replicaMaxWait", 500) is None else brokerConfig[0].get("replicaMaxWait", 500)
+		
+		# replicaMaxWait = 500 if brokerConfig[0].get("replicaMaxWait", 500) is None else brokerConfig[0].get("replicaMaxWait", 500)
 		replicaMinBytes = 1 if brokerConfig[0].get("replicaMinBytes", 1) is None else brokerConfig[0].get("replicaMinBytes", 1)
 
 	validateBrokerParameters(brokerConfig, nodeID, replicaMaxWait, replicaMinBytes)
@@ -48,7 +50,7 @@ def readBrokerConfig(brokerConfigPath, nodeID):
 	return brokerDetails 
 
 # reading from producer YAML specification
-def readProdConfig(prodConfigPath, producerType, nodeID):
+def readProdConfig(prodConfigPath, producerType, nodeID, prodDetails):
 	prodConfig = readYAMLConfig(prodConfigPath)
 
 	prodFile = "None" if prodConfig[0].get("filePath", "None") is None else prodConfig[0].get("filePath", "None")
@@ -57,11 +59,16 @@ def readProdConfig(prodConfigPath, producerType, nodeID):
 	nProducerInstances = "1" if str(prodConfig[0].get("producerInstances", "1")) is None else str(prodConfig[0].get("producerInstances", "1"))
 	producerPath = "producer.py" if prodConfig[0].get("producerPath", "producer.py") is None else prodConfig[0].get("producerPath", "producer.py")
 
+
+	acks = prodDetails[0]
+	compression = prodDetails[1]
+	batchSize = prodDetails[2]
+	linger = prodDetails[3]
 	# Apache Kafka parameters
-	acks = 1 if prodConfig[0].get("acks", 1) is None else prodConfig[0].get("acks", 1)
-	compression = "None" if str(prodConfig[0].get("compression", "None")) is None else str(prodConfig[0].get("compression", "None"))
-	batchSize = 16384 if prodConfig[0].get("batchSize", 16384) is None else prodConfig[0].get("batchSize", 16384)
-	linger = 0 if prodConfig[0].get("linger", 0) is None else prodConfig[0].get("linger", 0)
+	# acks = 1 if prodConfig[0].get("acks", 1) is None else prodConfig[0].get("acks", 1)
+	# compression = "None" if str(prodConfig[0].get("compression", "None")) is None else str(prodConfig[0].get("compression", "None"))
+	# batchSize = 16384 if prodConfig[0].get("batchSize", 16384) is None else prodConfig[0].get("batchSize", 16384)
+	# linger = 0 if prodConfig[0].get("linger", 0) is None else prodConfig[0].get("linger", 0)
 	requestTimeout = 30000 if prodConfig[0].get("requestTimeout", 30000) is None else prodConfig[0].get("requestTimeout", 30000)
 	bufferMemory = 33554432 if prodConfig[0].get("bufferMemory", 33554432) is None else prodConfig[0].get("bufferMemory", 33554432)
 
@@ -185,6 +192,13 @@ def readConfigParams(net, args):
 		topicConfigPath = inputTopo.graph["topicConfig"]
 		print("topic config directory: " + topicConfigPath)
 		topicPlace = readYAMLConfig(topicConfigPath)
+		n_copy = np.random.randint(1,20) 
+		print(n_copy)
+		topicPlace = [topicPlace[0].copy() for _ in range(n_copy)]
+		for i in range(len(topicPlace)):
+			topicPlace[i]['topicName'] = 'topic-'+str(i)
+			topicPlace[i]['topicBroker'] = np.random.randint(1,11)
+		print(topicPlace)
 
 	# reading fault config
 	try:
@@ -202,6 +216,16 @@ def readConfigParams(net, args):
 	nSwitches = 0
 	nHosts = 0
 	try:
+		prodParams = []
+		acks = 1
+		prodParams.append(acks)
+		compression = np.random.choice(['None','gzip','snappy'],replace=False)
+		prodParams.append(compression)
+		batchSize = np.random.randint(4096,262145)
+		prodParams.append(batchSize)
+		linger = np.random.randint(0,101)
+		prodParams.append(linger)
+		replicaMaxWait = np.random.randint(1,30001)
 		for node, data in inputTopo.nodes(data=True):  
 			if node[0] == 'h':
 				nodeID = node[1:]
@@ -216,11 +240,11 @@ def readConfigParams(net, args):
 						print("ERROR: zookeeper attribute only supports boolean input. Please check zookeeper attribute seting in node "+str(node))
 						sys.exit(1)
 				if 'brokerConfig' in data: 
-					brokerDetails = readBrokerConfig(data["brokerConfig"], nodeID)
+					brokerDetails = readBrokerConfig(data["brokerConfig"], nodeID, replicaMaxWait)
 					brokerPlace.append(brokerDetails)
 				if 'producerType' in data: 
 					producerType = data["producerType"]
-					prodDetails = readProdConfig(data["producerConfig"], producerType, nodeID)
+					prodDetails = readProdConfig(data["producerConfig"], producerType, nodeID, prodParams)
 					prodDetailsList.append(prodDetails)
 				if 'consumerType' in data:
 					consumerType = data["consumerType"]

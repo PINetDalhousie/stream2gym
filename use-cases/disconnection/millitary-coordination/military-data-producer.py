@@ -85,12 +85,17 @@ try:
 	tClass = 1.0
 	mSizeString = 'fixed,10'
 	mRate = 30   #1.0
-	nTopics = 2
+	nTopics = int(sys.argv[4])
+	# nTopics = 2
 
 	acks = 1
-	compression = 'gzip'   #'None'
-	batchSize = 16384
-	linger = 5000    #0
+	compression = sys.argv[5]
+	# compression = 'gzip'   #'None'
+	# batchSize = 16384
+	batchSize = int(sys.argv[6])
+	linger = int(sys.argv[7])
+	bufferMemory = int(sys.argv[8])
+	# linger = 5000    #0
 	requestTimeout = 100000  #30000
 	brokers = 10
 	messageFilePath = 'use-cases/disconnection/millitary-coordination/Cars103.xml'
@@ -128,14 +133,16 @@ try:
 			acks=acks,
 			batch_size=batchSize,
 			linger_ms=linger,
-			request_timeout_ms=requestTimeout)
+			request_timeout_ms=requestTimeout,
+   			buffer_memory=bufferMemory)
 	else:
 		producer = KafkaProducer(bootstrap_servers=bootstrapServers,
 			acks=acks,
 			compression_type=compression,
 			batch_size=batchSize,
 			linger_ms=linger,
-			request_timeout_ms=requestTimeout)
+			request_timeout_ms=requestTimeout,
+   			buffer_memory=bufferMemory)
 
 	# Read the message once and save in cache
 	if(messageFilePath != 'None'):

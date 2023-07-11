@@ -7,6 +7,9 @@ from mininet.cli import CLI
 from mininet.node import OVSController, RemoteController, CPULimitedHost
 from mininet.link import TCLink
 
+import numpy as np
+import csv
+
 import os
 import sys
 import subprocess
@@ -23,6 +26,7 @@ import emuLogs
 import emuStreamProc
 import emuDataStore
 import configParser
+import latency_throughput_logs
 
 pID=0
 popens = {}
@@ -66,102 +70,165 @@ if __name__ == '__main__':
 	  
 	args = parser.parse_args()
 	# print(args)
+ 
+	field_names = ['compression', 'batchSize', 'linger','n_topics','fetch_time','Throughput', 'Latency']
+	filename = 'data.csv'
+	with open(filename, 'a', newline='') as file:
+		writer = csv.DictWriter(file, fieldnames=field_names)
+		
+		if file.tell() == 0:
+			writer.writeheader()
 
-	#Clean up mininet state
-	cleanProcess = subprocess.Popen("sudo mn -c", shell=True)
-	time.sleep(2)
+		#Clean up mininet state
+		for i in range(1000):
+			
+			cleanProcess = subprocess.Popen("sudo mn -c", shell=True)
+			time.sleep(2)
 
-	#Instantiate network
-	emulatedTopo = emuNetwork.CustomTopo(args.topo)
+			#Instantiate network
+			emulatedTopo = emuNetwork.CustomTopo(args.topo)
 
-	net = Mininet(topo = None,
-			controller=RemoteController,
-			link = TCLink,
-			autoSetMacs = True,
-			autoStaticArp = True,
-			build=False,
-			host= CPULimitedHost)  # support for CPU limited host
+			net = Mininet(topo = None,
+					controller=RemoteController,
+					link = TCLink,
+					autoSetMacs = True,
+					autoStaticArp = True,
+					build=False,
+					host= CPULimitedHost)  # support for CPU limited host
 
-	net.topo = emulatedTopo
-	net.build()
+			net.topo = emulatedTopo
+			net.build()
 
-	brokerPlace, zkPlace, topicPlace, prodDetailsList, consDetailsList, isDisconnect, \
-		dcDuration, dcLinks, switchPlace, hostPlace, streamProcDetailsList = configParser.readConfigParams(net, args)
-	nTopics = len(topicPlace)
-	nSwitches = len(switchPlace)
-	nHosts = len(hostPlace)
-	print("Number of switches in the topology: "+str(nSwitches))
-	print("Number of hostnodes in the topology: "+str(nHosts))
-	print("Number of zookeepers in the topology: "+str(len(zkPlace)))
-	print("Number of brokers in the topology: "+str(len(brokerPlace)))
-	print("Number of topics: "+str(nTopics))
+			brokerPlace, zkPlace, topicPlace, prodDetailsList, consDetailsList, isDisconnect, \
+				dcDuration, dcLinks, switchPlace, hostPlace, streamProcDetailsList = configParser.readConfigParams(net, args)
+
+			data = {}
+			print(prodDetailsList)
+			for j in prodDetailsList:
+					if j['nodeId'] == '1':
+						data['compression'] = j['compression']
+						data['batchSize'] = j['batchSize']
+						data['linger'] = j['linger']
+						data['n_topics'] = len(topicPlace)//10
+						data['fetch_time'] = brokerPlace[0]['replicaMaxWait']
+						break
+			nTopics = len(topicPlace)
+			nSwitches = len(switchPlace)
+			nHosts = len(hostPlace)
+			print("Number of switches in the topology: "+str(nSwitches))
+			print("Number of hostnodes in the topology: "+str(nHosts))
+			print("Number of zookeepers in the topology: "+str(len(zkPlace)))
+			print("Number of brokers in the topology: "+str(len(brokerPlace)))
+			print("Number of topics: "+str(nTopics))
+			
+			# checking whether the application is only kafka or kafka-spark
+			storePath = emuStreamProc.getStreamProcDetails(net, args.topo)
+			if not streamProcDetailsList:   # if there is no configuration for spark
+				args.onlyKafka = 1
+			else:
+				args.onlyKafka = 0
+				#Add dependency to connect kafka & Spark
+				emuStreamProc.addStreamProcDependency()
+
+			killSubprocs(brokerPlace, zkPlace, prodDetailsList, streamProcDetailsList, consDetailsList)
+			
+			emuLogs.cleanLogs()
+			emuDataStore.cleanDataStoreState()
+			emuKafka.cleanKafkaState(brokerPlace)
+			emuZk.cleanZkState(zkPlace)
+				
+			if storePath != "":
+				print("Data store path: "+storePath)
+				emuDataStore.configureKafkaDataStoreConnection(brokerPlace)
+				# Add NAT connectivity
+				net.addNAT().configDefault()  
+
+			logDir = emuLogs.configureLogDir(nSwitches, nTopics, args.captureAll)
+			emuZk.configureZkCluster(zkPlace)
+			emuKafka.configureKafkaCluster(brokerPlace, zkPlace)
+
+			#Start network
+			net.start()
+			for switch in net.switches:
+				net.get(switch.name).start([])
+
+			logging.info('Network started')
+
+			#emuNetwork.configureNetwork(args.topo)
+			time.sleep(1)
+
+			print("Testing network connectivity")
+			net.pingAll()
+			print("Finished network connectivity test")
+					
+			#Start monitoring tasks
+			popens[pID] = subprocess.Popen("sudo python3 bandwidth-monitor.py "+str(nSwitches)+" &", shell=True)
+			pID += 1
+
+			emuZk.runZk(net, zkPlace, logDir)
+			emuKafka.runKafka(net, brokerPlace)
+			
+			emuLoad.runLoad(net, args, topicPlace, prodDetailsList, consDetailsList, streamProcDetailsList,\
+				storePath, isDisconnect, dcDuration, dcLinks, logDir)
+
+			# CLI(net)
+			print("Simulation complete")
+
+			# to kill all the running subprocesses
+			killSubprocs(brokerPlace, zkPlace, prodDetailsList, streamProcDetailsList, consDetailsList)
+
+			net.stop()
+			logging.info('Network stopped')
+
+			# Clean kafka-MySQL connection state before new simulation
+			if storePath != "":
+				emuDataStore.cleanDataStoreState()
+
+			#Need to clean both kafka and zookeeper state before a new simulation
+			emuKafka.cleanKafkaState(brokerPlace)
+			emuZk.cleanZkState(zkPlace)
+
+			#Need to clean spark dependency before a new simulation
+			emuStreamProc.cleanStreamProcDependency()
 	
-	# checking whether the application is only kafka or kafka-spark
-	storePath = emuStreamProc.getStreamProcDetails(net, args.topo)
-	if not streamProcDetailsList:   # if there is no configuration for spark
-		args.onlyKafka = 1
-	else:
-		args.onlyKafka = 0
-		#Add dependency to connect kafka & Spark
-		emuStreamProc.addStreamProcDependency()
+			Thr = latency_throughput_logs.plotAggregatedBandwidth()
+			Thr_avg = sum(Thr) / len(Thr)
 
-	killSubprocs(brokerPlace, zkPlace, prodDetailsList, streamProcDetailsList, consDetailsList)
-	
-	emuLogs.cleanLogs()
-	emuDataStore.cleanDataStoreState()
-	emuKafka.cleanKafkaState(brokerPlace)
-	emuZk.cleanZkState(zkPlace)
-        
-	if storePath != "":
-		print("Data store path: "+storePath)
-		emuDataStore.configureKafkaDataStoreConnection(brokerPlace)
-		# Add NAT connectivity
-		net.addNAT().configDefault()  
+			prodDetails = [{'prodNodeID':1, 'prodInstID':1},{'prodNodeID':2, 'prodInstID':1},{'prodNodeID':2, 'prodInstID':1},{'prodNodeID':2, 'prodInstID':1},
+					{'prodNodeID':3, 'prodInstID':1},{'prodNodeID':4, 'prodInstID':1},{'prodNodeID':5, 'prodInstID':1},{'prodNodeID':6, 'prodInstID':1},
+					{'prodNodeID':7, 'prodInstID':1},{'prodNodeID':8, 'prodInstID':1},{'prodNodeID':9, 'prodInstID':1},{'prodNodeID':10, 'prodInstID':1}]
+			consDetails = [{'consNodeID':1, 'consInstID':1}, {'consNodeID':2, 'consInstID':1},{'consNodeID':3, 'consInstID':1},{'consNodeID':4, 'consInstID':1},
+					{'consNodeID':5, 'consInstID':1},{'consNodeID':6, 'consInstID':1},{'consNodeID':7, 'consInstID':1},{'consNodeID':8, 'consInstID':1}
+					,{'consNodeID':9, 'consInstID':1},{'consNodeID':10, 'consInstID':1}]
+			nProducer = len(prodDetails)
+			nConsumer = len(consDetails)
+			logDir = 'logs/output/'
+			nTopic = 1
+			print(nProducer)
+			switches = 10 #args.switches
+				# logDir = args.logDir
 
-	logDir = emuLogs.configureLogDir(nSwitches, nTopics, args.captureAll)
-	emuZk.configureZkCluster(zkPlace)
-	emuKafka.configureKafkaCluster(brokerPlace, zkPlace)
+			os.system("sudo rm "+logDir+"latency-log.txt"+"; sudo touch "+logDir+"latency-log.txt")  
+			os.makedirs(logDir+"cons-latency-logs", exist_ok=True)
 
-	#Start network
-	net.start()
-	for switch in net.switches:
-		net.get(switch.name).start([])
+			
 
-	logging.info('Network started')
+			latency_throughput_logs.initConsStruct(switches)
+			latency_throughput_logs.readConsumerData(prodDetails, consDetails, nProducer, nConsumer, logDir)
 
-	#emuNetwork.configureNetwork(args.topo)
-	time.sleep(1)
+				# for prodId in range(switches):
+			for producer in prodDetails:
+				latency_throughput_logs.getProdDetails(producer, logDir, nConsumer, consDetails)
 
-	print("Testing network connectivity")
-	net.pingAll()
-	print("Finished network connectivity test")
-    		
-	#Start monitoring tasks
-	popens[pID] = subprocess.Popen("sudo python3 bandwidth-monitor.py "+str(nSwitches)+" &", shell=True)
-	pID += 1
 
-	emuZk.runZk(net, zkPlace, logDir)
-	emuKafka.runKafka(net, brokerPlace)
-    
-	emuLoad.runLoad(net, args, topicPlace, prodDetailsList, consDetailsList, streamProcDetailsList,\
-		 storePath, isDisconnect, dcDuration, dcLinks, logDir)
+			Late = latency_throughput_logs.plotLatencyScatter(logDir)
+			late_avg = sum(Late)/len(Late)
+		
 
-	# CLI(net)
-	print("Simulation complete")
+				
+			data['Throughput'] = Thr_avg
+			data['Latency'] = late_avg
+			writer.writerow(data)
+			print(i,'-------------------------------------------------------------------------------------------')
 
-	# to kill all the running subprocesses
-	killSubprocs(brokerPlace, zkPlace, prodDetailsList, streamProcDetailsList, consDetailsList)
-
-	net.stop()
-	logging.info('Network stopped')
-
-	# Clean kafka-MySQL connection state before new simulation
-	if storePath != "":
-		emuDataStore.cleanDataStoreState()
-
-	#Need to clean both kafka and zookeeper state before a new simulation
-	emuKafka.cleanKafkaState(brokerPlace)
-	emuZk.cleanZkState(zkPlace)
-
-	#Need to clean spark dependency before a new simulation
-	emuStreamProc.cleanStreamProcDependency()
+  
