@@ -25,6 +25,7 @@ def readYAMLConfig(configPath):
 
 def validateBrokerParameters(brokerConfig, nodeID, replicaMaxWait, replicaMinBytes):
 	# This value should always be less than the replica.lag.time.max.ms at all times to prevent frequent shrinking of ISR for low throughput topics
+	print(replicaMaxWait)
 	if replicaMaxWait >= REPLICA_LAG_TIME_MAX_MS:
 		print("ERROR in producer at node "+str(nodeID)+": replica.fetch.wait.max.ms must be less than the replica.lag.time.max.ms value of " +  str(REPLICA_LAG_TIME_MAX_MS) + " at all times.")
 		sys.exit(1)
@@ -186,18 +187,20 @@ def readConfigParams(net, args):
 		print("ERROR: Could not read topo properly.")
 		print(str(e))
 		sys.exit(1)
+  
 
 	#Read topic information
 	if onlySpark == 0: 
 		topicConfigPath = inputTopo.graph["topicConfig"]
 		print("topic config directory: " + topicConfigPath)
 		topicPlace = readYAMLConfig(topicConfigPath)
-		n_copy = np.random.randint(1,20) 
+		n_copy_list = [2, 6, 10]
+		n_copy = np.random.randint(1,10)
 		print(n_copy)
 		topicPlace = [topicPlace[0].copy() for _ in range(n_copy)]
 		for i in range(len(topicPlace)):
 			topicPlace[i]['topicName'] = 'topic-'+str(i)
-			topicPlace[i]['topicBroker'] = np.random.randint(1,11)
+			topicPlace[i]['topicBroker'] = (i+1)
 		print(topicPlace)
 
 	# reading fault config
@@ -221,11 +224,14 @@ def readConfigParams(net, args):
 		prodParams.append(acks)
 		compression = np.random.choice(['None','gzip','snappy'],replace=False)
 		prodParams.append(compression)
-		batchSize = np.random.randint(4096,262145)
+		batchSizeList = [4096, 134121, 262145]
+		batchSize = np.random.randint(4096,262146)
 		prodParams.append(batchSize)
+		lingerList = [0, 50, 100]
 		linger = np.random.randint(0,101)
 		prodParams.append(linger)
-		replicaMaxWait = np.random.randint(1,30001)
+		replicaMaxWaitList = [1, 10000, 29000]
+		replicaMaxWait = np.random.randint(1,30000)
 		for node, data in inputTopo.nodes(data=True):  
 			if node[0] == 'h':
 				nodeID = node[1:]

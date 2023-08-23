@@ -98,14 +98,15 @@ def runKafka(net, brokerPlace, brokerWaitTime=200):
 			if(exitCode == 0):
 				brokerWait = False
 				brokerCount += 1
-			# elif(totalTime > brokerWaitTime):
-			#    print("ERROR: Timed out waiting for Kafka brokers to start")
-			#    sys.exit(1)
+			if(totalTime > brokerWaitTime):
+				print("ERROR: Timed out waiting for Kafka brokers to start")
+				return False
 			else:
 				print("Waiting for Broker " + str(bNode) + " to Start...")
 				time.sleep(10)
 		brokerWait = True
 	print("Successfully Created "+str(brokerCount)+" Kafka Brokers in " + str(totalTime) + " seconds")
+	return True
 
 def cleanKafkaState(brokerPlace):
 	for bk in brokerPlace:

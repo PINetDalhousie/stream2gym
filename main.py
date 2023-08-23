@@ -109,7 +109,7 @@ if __name__ == '__main__':
 						data['compression'] = j['compression']
 						data['batchSize'] = j['batchSize']
 						data['linger'] = j['linger']
-						data['n_topics'] = len(topicPlace)//10
+						data['n_topics'] = len(topicPlace)
 						data['fetch_time'] = brokerPlace[0]['replicaMaxWait']
 						break
 			nTopics = len(topicPlace)
@@ -166,7 +166,16 @@ if __name__ == '__main__':
 			pID += 1
 
 			emuZk.runZk(net, zkPlace, logDir)
-			emuKafka.runKafka(net, brokerPlace)
+			if (emuKafka.runKafka(net, brokerPlace)) == False:
+				killSubprocs(brokerPlace, zkPlace, prodDetailsList, streamProcDetailsList, consDetailsList)
+				net.stop()
+			
+				emuLogs.cleanLogs()
+				emuDataStore.cleanDataStoreState()
+				emuKafka.cleanKafkaState(brokerPlace)
+				emuZk.cleanZkState(zkPlace)
+				emuStreamProc.cleanStreamProcDependency()
+				continue
 			
 			emuLoad.runLoad(net, args, topicPlace, prodDetailsList, consDetailsList, streamProcDetailsList,\
 				storePath, isDisconnect, dcDuration, dcLinks, logDir)
@@ -194,7 +203,7 @@ if __name__ == '__main__':
 			Thr = latency_throughput_logs.plotAggregatedBandwidth()
 			Thr_avg = sum(Thr) / len(Thr)
 
-			prodDetails = [{'prodNodeID':1, 'prodInstID':1},{'prodNodeID':2, 'prodInstID':1},{'prodNodeID':2, 'prodInstID':1},{'prodNodeID':2, 'prodInstID':1},
+			prodDetails = [{'prodNodeID':1, 'prodInstID':1},{'prodNodeID':2, 'prodInstID':1},
 					{'prodNodeID':3, 'prodInstID':1},{'prodNodeID':4, 'prodInstID':1},{'prodNodeID':5, 'prodInstID':1},{'prodNodeID':6, 'prodInstID':1},
 					{'prodNodeID':7, 'prodInstID':1},{'prodNodeID':8, 'prodInstID':1},{'prodNodeID':9, 'prodInstID':1},{'prodNodeID':10, 'prodInstID':1}]
 			consDetails = [{'consNodeID':1, 'consInstID':1}, {'consNodeID':2, 'consInstID':1},{'consNodeID':3, 'consInstID':1},{'consNodeID':4, 'consInstID':1},
